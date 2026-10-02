@@ -1,0 +1,40 @@
+[project]
+authors = [{name = "Federico Serrano", email = "serranolio@gmail.com"}]
+dependencies = []
+name = "many-body-quantum-simulator"
+requires-python = ">= 3.11"
+version = "0.1.0"
+
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tool.pixi.pypi-dependencies]
+many-body-quantum-simulator = { path = ".", editable = true }
+
+[tool.pixi.tasks]
+test = "pytest tests"
+
+[tool.pixi.dependencies]
+python = ">=3.11"
+numpy = ">=2.3.4,<3"
+notebook = ">=7.4.7,<8"
+pytest = ">=8.4.2,<9"
+pytest-cov = ">=7.0.0,<8"
+scipy = ">=1.16.3,<2"
+numba = ">=0.62.1,<0.63"
+joblib = ">=1.5.2,<2"
+pandas = ">=2.3.3,<3"
+
+[tool.pixi.feature.dev.dependencies]
+matplotlib = ">=3.10.8,<4"
+ipython = ">=9.11.0,<10"
+jupyter =">=1.1.1,<2"
+
+[tool.pixi.environments]
+default = []
+dev = ["dev"]
