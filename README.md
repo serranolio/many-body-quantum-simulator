@@ -1,5 +1,7 @@
 # many-body-quantum-simulator
 
+[![Tests](https://github.com/serranolio/many-body-quantum-simulator/actions/workflows/tests.yml/badge.svg)](https://github.com/serranolio/many-body-quantum-simulator/actions/workflows/tests.yml)
+
 Quantum many-body simulation of two-mode bosonic systems with conserved
 particle number, such as two-component or double-well Bose–Einstein
 condensates (bosonic Josephson junctions), the Lipkin–Meshkov–Glick model, and
