@@ -7,7 +7,8 @@ import numpy as np
 import pytest
 from scipy.linalg import expm, eigh
 
-import many_body_quantum_simulator.many_body_quantum_simulator as mb
+import many_body_quantum_simulator
+from many_body_quantum_simulator import two_mode as mb
 
 N = 40
 NONLINEAR, COUPLING, DETUNING = 0.3, 0.5, 0.1
@@ -259,3 +260,11 @@ def test_large_N_without_dense_matrix():
     H = mb.get_H_matrix(big_N, *params)
     energy = (psi.conj() @ (H @ psi)).real
     assert np.isclose((out.conj() @ (H @ out)).real, energy)
+
+
+# --- Package interface ------------------------------------------------------
+
+def test_public_api_is_exported():
+    for name in many_body_quantum_simulator.__all__:
+        assert getattr(many_body_quantum_simulator, name) is getattr(mb, name)
+    assert many_body_quantum_simulator.__version__ == "0.1.0"

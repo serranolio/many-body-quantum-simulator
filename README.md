@@ -68,8 +68,8 @@ immediately.
 
 ```python
 import numpy as np
-from many_body_quantum_simulator.many_body_quantum_simulator import (
-    Sx, Sy, Sz, evolve_state, get_ground_state, get_energy, spectral_bounds)
+from many_body_quantum_simulator import (
+    Sz, evolve_state, get_ground_state, get_energy, spectral_bounds)
 
 N = 200                                  # number of bosons
 nonlinear, coupling, detuning = 0.5, 1.0, 0.0
