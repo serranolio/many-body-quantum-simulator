@@ -52,7 +52,19 @@ $e^{-H\,\Delta\tau}$ (imaginary time) through a Chebyshev expansion
 
 ## Installation
 
-The project uses [pixi](https://pixi.sh) to manage the environment:
+### With pip
+
+To use the package in an existing Python (>= 3.11) environment:
+
+```bash
+pip install git+https://github.com/serranolio/many-body-quantum-simulator.git
+```
+
+This installs the core dependencies (NumPy, SciPy, Numba).
+
+### For development, with pixi
+
+The project uses [pixi](https://pixi.sh) to manage reproducible environments:
 
 ```bash
 git clone https://github.com/serranolio/many-body-quantum-simulator.git
@@ -62,7 +74,15 @@ pixi shell        # or prefix commands with `pixi run`
 ```
 
 The package is installed in editable mode, so changes in `src/` take effect
-immediately.
+immediately. Two environments are defined:
+
+| Environment | Contents | Activate with |
+|---|---|---|
+| `default` | core dependencies and pytest | `pixi shell` |
+| `dev` | default plus Matplotlib, Jupyter, pandas and joblib for notebooks and analysis | `pixi shell -e dev` |
+
+For example, `pixi run -e dev jupyter notebook` starts Jupyter in the `dev`
+environment.
 
 ## Usage
 
