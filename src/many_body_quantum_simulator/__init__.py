@@ -16,6 +16,11 @@ from .two_mode import (
     evolve_state,
     get_ground_state,
 )
+from .representations import (
+    spin_coherent_state,
+    husimi_q,
+    wigner,
+)
 
 __all__ = [
     "Sx",
@@ -30,6 +35,9 @@ __all__ = [
     "evaluate_state",
     "evolve_state",
     "get_ground_state",
+    "spin_coherent_state",
+    "husimi_q",
+    "wigner",
 ]
 
 __version__ = version("many-body-quantum-simulator")

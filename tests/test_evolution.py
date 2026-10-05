@@ -265,6 +265,9 @@ def test_large_N_without_dense_matrix():
 # --- Package interface ------------------------------------------------------
 
 def test_public_api_is_exported():
+    from many_body_quantum_simulator import representations
     for name in many_body_quantum_simulator.__all__:
-        assert getattr(many_body_quantum_simulator, name) is getattr(mb, name)
+        source = mb if hasattr(mb, name) else representations
+        assert getattr(many_body_quantum_simulator, name) is getattr(source,
+                                                                     name)
     assert many_body_quantum_simulator.__version__ == "0.1.0"

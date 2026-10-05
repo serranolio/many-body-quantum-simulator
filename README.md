@@ -128,6 +128,46 @@ convergence is then slow and sensitive to round-off.
 | `spectral_bounds(N, nonlinear, coupling, detuning, exact=False)` | Interval containing the spectrum of $H$ |
 | `evolve_state(state, nonlinear, coupling, detuning, t_step, steps, ...)` | Real- or imaginary-time evolution with time-dependent parameters; returns `snapshots` states |
 | `get_ground_state(state, nonlinear, coupling, detuning, ...)` | Ground state by imaginary-time evolution |
+| `spin_coherent_state(N, theta, phi)` | Spin-coherent state pointing along $(\theta, \phi)$ |
+| `husimi_q(state, theta, phi)` | Husimi Q function on the Bloch sphere |
+| `wigner(state, theta, phi)` | Spin (Agarwal) Wigner function on the Bloch sphere |
+
+## Phase-space representations
+
+A state of $N$ bosons in two modes is a spin $j = N/2$ state, so it can be
+visualized on the Bloch sphere. A point $(\theta, \phi)$ corresponds to the
+direction $\langle \mathbf{S} \rangle = (\sin\theta\cos\phi,
+\sin\theta\sin\phi, \cos\theta)$; $\theta = 0$ means all bosons in the right
+mode.
+
+- `husimi_q`: $Q(\theta, \phi) = \frac{2j+1}{4\pi}
+  |\langle \theta, \phi | \psi \rangle|^2$, the overlap with spin-coherent
+  states. Always non-negative; cost $O(N)$ per grid point.
+- `wigner`: the spin Wigner function of Agarwal (1981). It can be negative, e.g.
+  for cat states. Cost $O(N^2)$ per grid point: about 1 s for $N = 1000$ on a
+  $100 \times 200$ grid.
+
+Both take a pure state and 1-D grids of `theta` and `phi`, return an array of
+shape `(len(theta), len(phi))`, and are normalized to 1 over the sphere
+($d\Omega = \sin\theta\, d\theta\, d\phi$).
+
+```python
+import numpy as np
+import many_body_quantum_simulator as mbqs
+
+N = 100
+theta = np.linspace(0, np.pi, 100)
+phi = np.linspace(-np.pi, np.pi, 200)
+
+# Cat state: superposition of all particles in the right and in the left mode
+cat = mbqs.spin_coherent_state(N, 0, 0) + mbqs.spin_coherent_state(N, np.pi, 0)
+cat /= np.linalg.norm(cat)
+
+Q = mbqs.husimi_q(cat, theta, phi)   # shape (100, 200), Q >= 0
+W = mbqs.wigner(cat, theta, phi)     # negative near the equator
+
+# e.g. plt.pcolormesh(phi, np.cos(theta), W)
+```
 
 ## Tests
 
