@@ -86,9 +86,10 @@ def apply_H_vectorized(state,
     state_p1[-1] = 0.0
     state_m1 = np.roll(state, 1)
     state_m1[0] = 0.0
-    # off-diagonal terms
+    # off-diagonal terms: a complex coupling Re Sx + Im Sy
     output = (nonlinear_t * (n_right - n_left)**2 / N**2 * state
-              + coupling_t * (al_ar * state_m1 + ar_al * state_p1) / N
+              + (coupling_t * al_ar * state_m1
+                 + np.conj(coupling_t) * ar_al * state_p1) / N
               + detuning_t * (n_right - n_left) / N * state)
     return output
 
@@ -97,13 +98,18 @@ def get_H_tridiagonal(N,
                       coupling,
                       detuning):
     """
-    Diagonal and off-diagonal (symmetric) entries of H in the Fock basis.
+    Diagonal and upper off-diagonal entries H[i, i+1] of H in the Fock basis.
+
+    The coupling can be complex, coupling = C + iD for C Sx + D Sy; the lower
+    off-diagonal is then the complex conjugate of the upper one. For a real
+    coupling both are real and H is real symmetric.
     """
     n_left = np.arange(N + 1)
     n_right = N - n_left
     sz = (n_right - n_left) / N
     diagonal = nonlinear * sz**2 + detuning * sz
-    off_diagonal = coupling * np.sqrt((n_left[:-1] + 1) * n_right[:-1]) / N
+    off_diagonal = (np.conj(coupling)
+                    * np.sqrt((n_left[:-1] + 1) * n_right[:-1]) / N)
     return diagonal, off_diagonal
 
 def get_H_matrix(N,
@@ -112,11 +118,11 @@ def get_H_matrix(N,
                  detuning):
     """
     Sparse (CSR) Hamiltonian in the Fock basis. Use .toarray() for a dense
-    matrix, e.g. for np.linalg.eigh at small N.
+    matrix, e.g. for np.linalg.eigh at small N. Complex if the coupling is.
     """
     diagonal, off_diagonal = get_H_tridiagonal(N, nonlinear, coupling,
                                                detuning)
-    return diags([off_diagonal, diagonal, off_diagonal], [-1, 0, 1],
+    return diags([np.conj(off_diagonal), diagonal, off_diagonal], [-1, 0, 1],
                  format='csr')
 
 def spectral_bounds(N,
@@ -132,10 +138,17 @@ def spectral_bounds(N,
     having eigenvalues in [-1, 1]: O(1) cost, valid for any N, but loose.
     With exact=True, computes the extreme eigenvalues of the tridiagonal H
     (O(N) memory), padded by margin times the spectral width.
+
+    For a complex coupling C + iD, |coupling| = sqrt(C^2 + D^2) is the
+    amplitude of the rotated transverse term C Sx + D Sy, so the analytic
+    bound stays tight.
     """
     if exact:
         diagonal, off_diagonal = get_H_tridiagonal(N, nonlinear, coupling,
                                                    detuning)
+        # A diagonal phase transformation makes the off-diagonal real and
+        # non-negative without changing the eigenvalues.
+        off_diagonal = np.abs(off_diagonal)
         e_min = eigvalsh_tridiagonal(diagonal, off_diagonal, select='i',
                                      select_range=(0, 0))[0]
         e_max = eigvalsh_tridiagonal(diagonal, off_diagonal, select='i',
@@ -171,7 +184,8 @@ def check_spectral_window(N,
     lower, upper = diagonal.min(), diagonal.max()
     if N > 0:
         mean = (diagonal[:-1] + diagonal[1:]) / 2
-        radius = np.hypot((diagonal[:-1] - diagonal[1:]) / 2, off_diagonal)
+        radius = np.hypot((diagonal[:-1] - diagonal[1:]) / 2,
+                          np.abs(off_diagonal))
         lower = min(lower, (mean - radius).min())
         upper = max(upper, (mean + radius).max())
     slack = 1e-12 * max(1.0, abs(lower), abs(upper))
@@ -204,6 +218,8 @@ def apply_H_static(state,
                    detuning_t):
     n = len(state)
     output = np.zeros_like(state)
+    # A complex coupling C + iD gives C Sx + D Sy
+    coupling_conj = np.conj(coupling_t)
 
     # Calculate output values
     for i in range(n):
@@ -211,7 +227,7 @@ def apply_H_static(state,
         if i > 0:
             value += coupling_t * al_ar[i] * state[i-1]
         if i < n-1:
-            value += coupling_t * ar_al[i] * state[i+1]
+            value += coupling_conj * ar_al[i] * state[i+1]
         value = value / N
         Sz_value = (n_right[i] - n_left[i]) / N
         value += detuning_t * Sz_value * state[i]

@@ -158,7 +158,7 @@ def exact_imaginary_time(H, psi, tau):
     # Eigendecomposition reference, shifted by E0 so that nothing overflows.
     energies, vectors = eigh(H)
     out = vectors @ (np.exp(-(energies - energies[0]) * tau)
-                     * (vectors.T @ psi))
+                     * (vectors.conj().T @ psi))
     return out / np.linalg.norm(out)
 
 
@@ -260,6 +260,147 @@ def test_large_N_without_dense_matrix():
     H = mb.get_H_matrix(big_N, *params)
     energy = (psi.conj() @ (H @ psi)).real
     assert np.isclose((out.conj() @ (H @ out)).real, energy)
+
+
+# --- Complex coupling: C Sx + D Sy ------------------------------------------
+
+C_X, D_Y = 0.5, 0.4
+COMPLEX_COUPLING = C_X + 1j * D_Y
+
+
+def spin_matrices(N):
+    return tuple(operator_matrix(op, N) for op in (mb.Sx, mb.Sy, mb.Sz))
+
+
+def test_complex_coupling_hamiltonian():
+    X, Y, Z = spin_matrices(N)
+    expected = NONLINEAR * Z @ Z + DETUNING * Z + C_X * X + D_Y * Y
+    H = dense_H(N, NONLINEAR, COMPLEX_COUPLING, DETUNING)
+    assert np.allclose(H, expected)
+    assert np.allclose(H, H.conj().T)
+
+    psi = random_state(N)
+    n_left, n_right, al_ar, ar_al = fock_arrays(N)
+    assert np.allclose(mb.apply_H_vectorized(psi, NONLINEAR, COMPLEX_COUPLING,
+                                             DETUNING), expected @ psi)
+    assert np.allclose(mb.apply_H_static(psi, N, n_left, n_right, al_ar,
+                                         ar_al, NONLINEAR, COMPLEX_COUPLING,
+                                         DETUNING), expected @ psi)
+    assert np.isclose(mb.get_energy(psi, NONLINEAR, COMPLEX_COUPLING,
+                                    DETUNING), psi.conj() @ expected @ psi)
+
+
+def test_real_coupling_keeps_real_hamiltonian():
+    diagonal, off_diagonal = mb.get_H_tridiagonal(N, NONLINEAR, COUPLING,
+                                                  DETUNING)
+    assert np.isrealobj(diagonal) and np.isrealobj(off_diagonal)
+    assert np.isrealobj(dense_H(N, NONLINEAR, COUPLING, DETUNING))
+
+
+@pytest.mark.parametrize("e_min, e_max", [(None, None), (-1.5, 1.5)])
+@pytest.mark.parametrize("t_step", [0.5, 5.0, 20.0])
+def test_complex_coupling_real_time_step(e_min, e_max, t_step):
+    psi = random_state(N)
+    H = dense_H(N, NONLINEAR, COMPLEX_COUPLING, DETUNING)
+    out = step(psi, t_step, NONLINEAR, COMPLEX_COUPLING, DETUNING,
+               e_min=e_min, e_max=e_max)
+    assert np.allclose(out, expm(-1j * H * t_step) @ psi, atol=1e-10)
+
+
+def test_complex_coupling_imaginary_time():
+    psi = random_state(N)
+    H = dense_H(N, NONLINEAR, COMPLEX_COUPLING, DETUNING)
+    out = step(psi, 50.0, NONLINEAR, COMPLEX_COUPLING, DETUNING,
+               imaginary_time=True, e_min=None, e_max=None)
+    assert np.allclose(out, exact_imaginary_time(H, psi, 50.0), atol=1e-10)
+
+    energies, vectors = eigh(H)
+    ground = mb.get_ground_state(psi, NONLINEAR, COMPLEX_COUPLING, DETUNING,
+                                 steps=200)
+    assert np.isclose(abs(vectors[:, 0].conj() @ ground)**2, 1.0)
+
+
+def test_complex_coupling_spectral_bounds():
+    energies = eigh(dense_H(N, NONLINEAR, COMPLEX_COUPLING, DETUNING),
+                    eigvals_only=True)
+    lo, hi = mb.spectral_bounds(N, NONLINEAR, COMPLEX_COUPLING, DETUNING)
+    assert lo <= energies[0] and energies[-1] <= hi
+    lo, hi = mb.spectral_bounds(N, NONLINEAR, COMPLEX_COUPLING, DETUNING,
+                                exact=True)
+    assert np.isclose(lo, energies[0], atol=1e-5)
+    assert np.isclose(hi, energies[-1], atol=1e-5)
+
+
+def test_complex_coupling_window_check():
+    import warnings
+    psi = random_state(N)
+    with pytest.warns(RuntimeWarning, match="Spectral window"):
+        step(psi, 1.0, NONLINEAR, COMPLEX_COUPLING, DETUNING,
+             e_min=-0.1, e_max=0.1)
+    e_min, e_max = mb.spectral_bounds(N, NONLINEAR, COMPLEX_COUPLING,
+                                      DETUNING, exact=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        step(psi, 1.0, NONLINEAR, COMPLEX_COUPLING, DETUNING,
+             e_min=e_min, e_max=e_max)
+
+
+def test_constant_phase_is_a_rotation_about_z():
+    # C Sx + D Sy = R (cos a Sx + sin a Sy) with R = |C + iD|, a = arg(C + iD):
+    # H(C + iD) = U H(R) U^dagger with U = exp(-i a N Sz / 2)
+    _, _, Z = spin_matrices(N)
+    U = expm(-1j * np.angle(COMPLEX_COUPLING) * N / 2 * Z)
+    H_complex = dense_H(N, NONLINEAR, COMPLEX_COUPLING, DETUNING)
+    H_real = dense_H(N, NONLINEAR, abs(COMPLEX_COUPLING), DETUNING)
+    assert np.allclose(H_complex, U @ H_real @ U.conj().T)
+
+
+def sy_drive(t):
+    return 0.4 * np.sin(0.7 * t)
+
+
+def test_sy_drive_matches_expm():
+    # H(t) = A Sz^2 + B Sz + C Sx + D(t) Sy, midpoint rule in both
+    X, Y, Z = spin_matrices(N)
+    psi0 = random_state(N, seed=3)
+    t_step, steps = 0.5, 40
+    trace = mb.evolve_state(psi0,
+                            lambda t: NONLINEAR,
+                            lambda t: C_X + 1j * sy_drive(t),
+                            lambda t: DETUNING,
+                            t_step, steps, snapshots=steps)
+    exact = psi0.copy()
+    for i in range(steps):
+        assert np.allclose(trace[i], exact, atol=1e-10)
+        tm = (i + 0.5) * t_step
+        H = (NONLINEAR * Z @ Z + DETUNING * Z + C_X * X + sy_drive(tm) * Y)
+        exact = expm(-1j * H * t_step) @ exact
+
+
+def test_sy_drive_matches_rotating_frame():
+    # Independent check with a real coupling only: in the frame rotating with
+    # a(t) = arg(C + i D(t)), the coupling is R(t) = |C + i D(t)| and the
+    # detuning is B - a'(t) N / 2. The two agree up to the midpoint-rule error.
+    small_N = 30
+    _, _, Z = spin_matrices(small_N)
+    alpha = lambda t: np.arctan2(sy_drive(t), C_X)
+    dalpha = lambda t: (C_X * 0.4 * 0.7 * np.cos(0.7 * t)
+                        / (C_X**2 + sy_drive(t)**2))
+    rotation = lambda t: np.exp(-1j * alpha(t) * small_N / 2 * np.diag(Z))
+    psi0 = random_state(small_N, seed=4)
+    t_step, steps = 0.01, 1000
+
+    lab = mb.evolve_state(psi0,
+                          lambda t: NONLINEAR,
+                          lambda t: C_X + 1j * sy_drive(t),
+                          lambda t: DETUNING,
+                          t_step, steps + 1, snapshots=steps + 1)[-1]
+    rotating = mb.evolve_state(rotation(0).conj() * psi0,
+                               lambda t: NONLINEAR,
+                               lambda t: np.hypot(C_X, sy_drive(t)),
+                               lambda t: DETUNING - dalpha(t) * small_N / 2,
+                               t_step, steps + 1, snapshots=steps + 1)[-1]
+    assert np.allclose(lab, rotation(steps * t_step) * rotating, atol=1e-4)
 
 
 # --- Package interface ------------------------------------------------------

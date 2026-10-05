@@ -25,12 +25,22 @@ with eigenvalues in $[-1, 1]$ and $[S_x, S_y] = \tfrac{2i}{N} S_z$. The
 Hamiltonian ($\hbar = 1$) is
 
 $$
-H(t) = \Lambda(t)\, S_z^2 + \Omega(t)\, S_x + \delta(t)\, S_z ,
+H(t) = \Lambda(t)\, S_z^2 + \mathrm{Re}\,\Omega(t)\, S_x
+       + \mathrm{Im}\,\Omega(t)\, S_y + \delta(t)\, S_z ,
 $$
 
 where $\Lambda$ is the nonlinear (interaction) term, $\Omega$ the coupling
-and $\delta$ the detuning. $H$ is real and tridiagonal in the Fock basis, so
-memory and cost per time step scale linearly with $N$.
+and $\delta$ the detuning. The coupling can be complex,
+$\Omega = C + iD = |\Omega| e^{i\alpha}$: a transverse field of amplitude
+$|\Omega|$ along the direction $\alpha$ in the $x$–$y$ plane. A real coupling
+gives the usual $\Omega S_x$; a drive along $S_y$ is
+`coupling=lambda t: C + 1j * D(t)`. $H$ is tridiagonal in the Fock basis (real
+for a real coupling, complex Hermitian otherwise), so memory and cost per time
+step scale linearly with $N$.
+
+For constant parameters the phase $\alpha$ only rotates the problem about $z$;
+a time-dependent phase $\alpha(t)$ acts like an extra detuning
+$-\dot\alpha N/2$ in the rotating frame.
 
 ## Numerical method
 
@@ -42,6 +52,7 @@ $e^{-H\,\Delta\tau}$ (imaginary time) through a Chebyshev expansion
   $[E_\mathrm{min}, E_\mathrm{max}]$ that must contain its spectrum. By default
   the window is computed at every step from the analytic bound
   $E \in [\min(0,\Lambda) - |\Omega| - |\delta|,\ \max(0,\Lambda) + |\Omega| + |\delta|]$.
+  For a complex coupling, $|\Omega| = \sqrt{C^2 + D^2}$.
   A tighter window can be obtained with `spectral_bounds(..., exact=True)`;
   explicit windows that are provably too narrow raise a `RuntimeWarning`.
 - **Adaptive truncation.** Bessel coefficients are added until they fall below
@@ -123,7 +134,7 @@ convergence is then slow and sensitive to round-off.
 | Function | Description |
 |---|---|
 | `Sx(state)`, `Sy(state)`, `Sz(state)` | Apply the normalized spin operators |
-| `get_H_matrix(N, nonlinear, coupling, detuning)` | Sparse (CSR) Hamiltonian; use `.toarray()` for dense |
+| `get_H_matrix(N, nonlinear, coupling, detuning)` | Sparse (CSR) Hamiltonian, complex if the coupling is; use `.toarray()` for dense |
 | `get_energy(state, nonlinear, coupling, detuning)` | Energy expectation value of a normalized state |
 | `spectral_bounds(N, nonlinear, coupling, detuning, exact=False)` | Interval containing the spectrum of $H$ |
 | `evolve_state(state, nonlinear, coupling, detuning, t_step, steps, ...)` | Real- or imaginary-time evolution with time-dependent parameters; returns `snapshots` states |
